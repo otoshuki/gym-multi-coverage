@@ -1,7 +1,8 @@
 #Guining Pertin
 #Simulator Environment for BTP Mk. I
 #21-09-20
-
+#Updating reward for avoiding uneccesary goal changes
+# - Devashish Taneja
 #Import libraries
 import gym
 import numpy as np
@@ -104,6 +105,7 @@ class MultiCoverageEnv(gym.Env):
         self.K = K
         self.t_lim = t_lim
         self.curr_t = 0
+        self.prev_action =  [-1 for i in range(M)]
         #Action space
         actions_list = [spaces.Discrete(K+1) for i in range(M)]
         self.action_space = spaces.Tuple(tuple(actions_list))
@@ -113,7 +115,7 @@ class MultiCoverageEnv(gym.Env):
                         dtype=np.uint16) for i in range(M)]
         self.observation_space = spaces.Tuple(tuple(states_list))
         self.goal_r_multiplier = 2
-
+        
     def step(self, action):
         '''
         Arguments:
@@ -132,10 +134,18 @@ class MultiCoverageEnv(gym.Env):
         reward = 0
         done = self.check_completion()
         #Perform action for each agent
+        add_reward = 0
         for i in range(self.M):
             #Perform actions only if not completed
             if not done:
                 self.agents[i].perform_action(action[i])
+                if(action[i]==0):
+                    add_reward -= 1
+                elif(self.goal_weights[action[i]-1]==0):
+                     add_reward -= 4
+                elif(self.prev_action[i]!=action[i] and self.prev_action[i]!=-1):
+                    add_reward -= 2
+                self.prev_action[i] = action[i]
             curr = self.agents[i].curr
             currs.append(curr)
             #Update state for each agent
@@ -143,7 +153,7 @@ class MultiCoverageEnv(gym.Env):
             state.append(self.agents[i].state)
         info = {'map': self.map, 'currs': np.array(currs)}
         self.curr_t += 1
-        reward = self.compute_reward()
+        reward = self.compute_reward() + add_reward
         return np.array(state), reward, done, info
 
     def check_completion(self):
